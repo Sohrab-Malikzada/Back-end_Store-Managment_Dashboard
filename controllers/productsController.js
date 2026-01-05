@@ -27,7 +27,7 @@ export async function createProduct(req, res) {
   }
 }
 
-// Update an existing product in the database.
+// Update an existing product in the database and handle non-existing product case.
 export async function updateProduct(req, res) {
   try {
     const db = req.app.locals.db;
@@ -52,7 +52,7 @@ export async function updateProduct(req, res) {
   }
 }
 
-// Delete a product from the database.
+// Delete a product from the database.  
 export async function deleteProduct(req, res) {
   try {
     const db = req.app.locals.db;
@@ -104,4 +104,32 @@ export async function adjustStock(req, res) {
     res.status(500).json({ error: "Failed to adjust stock" });
   }
 }
+// GET /inventory/value
+export async function getInventoryValue(req, res) {
+  try {
+    const db = req.app.locals.db;
+    const agg = await db.collection("products").aggregate([
+      {
+        $project: {
+          stockLevel: { $ifNull: ["$stockLevel", 0] },
+          purchasePrice: { $ifNull: ["$purchasePrice", 0] },
+          value: { $multiply: [{ $toDouble: "$stockLevel" }, { $toDouble: "$purchasePrice" }] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalInventoryValue: { $sum: "$value" }
+        }
+      }
+    ]).toArray();
+
+    const total = agg[0]?.totalInventoryValue || 0;
+    res.json({ totalInventoryValue: total });
+  } catch (err) {
+    console.error("getInventoryValue error:", err);
+    res.status(500).json({ error: "Failed to compute inventory value" });
+  }
+}
+
 
